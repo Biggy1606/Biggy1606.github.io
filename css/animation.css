@@ -1,0 +1,33 @@
+/* CSS Document */
+@keyframes logoHr-1 {
+	0% {width: 0%;}
+	100% {width: 350px;}
+}
+@keyframes logoHr-2 {
+	0% {width: 0%;}
+	100% {width: 450px;}
+}
+@keyframes logoIn {
+	0% {transform: translateY(-100%);opacity: 0;}
+	50% {transform: translateY(-50%);opacity: 0;}
+	100% {transform: translateY(0%);opacity: 1;}
+}
+@keyframes socialsHover {
+	0% {transform: translateZ(100%);opacity: 1;}
+	50% {transform: translateZ(0%);opacity: 0;}
+	100% {transform: translateZ(100%);opacity: 1;}
+}
+@keyframes socials {
+	0% {transform: scale(1.5);opacity: 0;}
+	100% {transform: scale(1);opacity: 1;}
+}
+/*wykorzystanie animacji
+#########################
+[animation: 1s ease-out 0s 1 logoHr-2;]
+
+1s - czas trwania
+ease-out - zachowanie
+0s - opoznienie startu
+1 - ilosc powtorzen (mozliwe: infinity)
+logoHr-2 - nazwa animacji
+*/
