@@ -268,7 +268,9 @@ p b {
 	}
 	.huj{
 		text-align: center;
-		font-size: 400px;
 		display: block;
+	}
+	img {
+		margin: 10px;
 	}
 }
