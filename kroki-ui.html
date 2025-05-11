@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Generate diagrams using the Kroki API with various diagram formats"
+    />
+    <title>Kroki Diagram Generator</title>
+    <script
+      src="https://unpkg.com/pako@1.0.10/dist/pako_deflate.min.js"
+      defer
+    ></script>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/kroki-ui.js" defer></script>
+  </head>
+  <body>
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+      <h1>Kroki Diagram Generator</h1>
+
+      <div class="form-group">
+        <label for="server">Kroki Server</label>
+        <input
+          type="text"
+          id="server"
+          value="https://kroki.io"
+          placeholder="Enter Kroki server URL"
+          aria-label="Kroki server URL"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="diagram-type">Diagram Type</label>
+        <select id="diagram-type" aria-label="Select diagram type">
+          <option value="actdiag">ActDiag</option>
+          <option value="blockdiag">BlockDiag</option>
+          <option value="bpmn">BPMN</option>
+          <option value="bytefield">Bytefield</option>
+          <option value="c4plantuml">C4 PlantUML</option>
+          <option value="d2">D2</option>
+          <option value="dbml">DBML</option>
+          <option value="ditaa">Ditaa</option>
+          <option value="erd">Erd</option>
+          <option value="excalidraw">Excalidraw</option>
+          <option value="graphviz">GraphViz</option>
+          <option value="mermaid">Mermaid</option>
+          <option value="nomnoml">Nomnoml</option>
+          <option value="nwdiag">NwDiag</option>
+          <option value="packetdiag">PacketDiag</option>
+          <option value="pikchr">Pikchr</option>
+          <option value="plantuml" selected>PlantUML</option>
+          <option value="rackdiag">RackDiag</option>
+          <option value="seqdiag">SeqDiag</option>
+          <option value="structurizr">Structurizr</option>
+          <option value="svgbob">Svgbob</option>
+          <option value="symbolator">Symbolator</option>
+          <option value="tikz">TikZ</option>
+          <option value="umlet">UMlet</option>
+          <option value="vega">Vega</option>
+          <option value="vegalite">Vega-Lite</option>
+          <option value="wavedrom">WaveDrom</option>
+          <option value="wireviz">WireViz</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="output-format">Output Format</label>
+        <select id="output-format" aria-label="Select output format">
+          <option value="svg">SVG</option>
+          <option value="png">PNG</option>
+          <option value="jpeg">JPEG</option>
+          <option value="pdf">PDF</option>
+          <option value="txt">TXT</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="diagram-source">Diagram Source</label>
+        <textarea
+          id="diagram-source"
+          placeholder="Enter your diagram source code here"
+          aria-label="Diagram source code"
+        >
+skinparam ranksep 20
+skinparam dpi 125
+skinparam packageTitleAlignment left
+
+rectangle "Main" {
+  (main.view)
+  (singleton)
+}
+rectangle "Base" {
+  (base.component)
+  (component)
+  (model)
+}
+rectangle "<b>main.ts</b>" as main_ts
+
+(component) ..> (base.component)
+main_ts ==> (main.view)
+(main.view) --> (component)
+(main.view) ...> (singleton)
+(singleton) ---> (model)</textarea
+        >
+      </div>
+
+      <div class="button-group">
+        <button id="generate-btn" class="btn" aria-label="Generate diagram">
+          Generate Diagram
+        </button>
+      </div>
+      <div class="download-container">
+        <button
+          id="download-btn"
+          class="btn btn-small"
+          aria-label="Download diagram"
+        >
+          Download
+        </button>
+        <button
+          id="copy-url-btn"
+          class="btn btn-small"
+          aria-label="Copy diagram URL"
+          style="display: none"
+        >
+          Copy URL
+        </button>
+      </div>
+      <div id="loading" class="loading" aria-live="polite">
+        Generating diagram
+      </div>
+      <div id="error-message" class="error-message" aria-live="assertive"></div>
+
+      <div id="result-container" class="result-container" aria-live="polite">
+        <!-- Result will be inserted here -->
+      </div>
+    </div>
+
+    <script src="js/particles.js"></script>
+  </body>
+</html>
