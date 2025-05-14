@@ -1,11 +1,11 @@
 const CACHE_NAME = "pwa-cache-v1";
 const ASSETS_TO_CACHE = [
-  "/",
-  "/index.html",
-  "/css/styles.css",
-  "/js/app.js",
-  "/manifest.json",
-  "/images/icon-192x192.png",
+  "/pwa-demo/",
+  "/pwa-demo/index.html",
+  "/pwa-demo/css/styles.css",
+  "/pwa-demo/js/app.js",
+  "/pwa-demo/manifest.json",
+  "/pwa-demo/images/icon-192x192.png",
 ];
 
 // Install event - precache assets
