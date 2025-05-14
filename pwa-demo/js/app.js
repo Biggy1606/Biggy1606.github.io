@@ -54,6 +54,37 @@ function updateCache() {
   }
 }
 
+// Listen for messages from service worker
+navigator.serviceWorker.addEventListener('message', (event) => {
+  if (event.data.type === 'NEW_CONTENT_AVAILABLE') {
+    showRefreshUI();
+  }
+});
+
+// Function to show refresh UI
+function showRefreshUI() {
+  const refreshBanner = document.createElement('div');
+  refreshBanner.id = 'refresh-banner';
+  refreshBanner.innerHTML = `
+    <p>New content is available!</p>
+    <button id="refresh-button">Refresh page</button>
+  `;
+  refreshBanner.style.position = 'fixed';
+  refreshBanner.style.bottom = '0';
+  refreshBanner.style.left = '0';
+  refreshBanner.style.right = '0';
+  refreshBanner.style.backgroundColor = '#4caf50';
+  refreshBanner.style.color = 'white';
+  refreshBanner.style.padding = '10px';
+  refreshBanner.style.textAlign = 'center';
+  
+  document.body.appendChild(refreshBanner);
+  
+  document.getElementById('refresh-button').addEventListener('click', () => {
+    window.location.reload();
+  });
+}
+
 // Register beforeinstallprompt for Add to Home Screen
 let deferredPrompt;
 window.addEventListener("beforeinstallprompt", (e) => {

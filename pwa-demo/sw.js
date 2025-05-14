@@ -46,25 +46,36 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("message", (event) => {
   // Update cache event - update cache when online (update all assets)
   if (event.data === "updateCache") {
-    event.waitUntil(
-      // Re-cache all assets
-      caches.open(CACHE_NAME).then((cache) => {
-        console.log("Updating cache based on client request ✅");
-        return Promise.all(
-          ASSETS_TO_CACHE.map((url) => {
-            return fetch(url)
-              .then((response) => {
-                if (!response.ok) {
-                  throw new Error("Network response was not ok");
-                }
-                return cache.put(url, response);
-              })
-              .catch((error) => {
-                console.error("Failed to update cache for:", url, error);
-              });
-          })
-        );
-      })
-    );
+    event
+      .waitUntil(
+        // Re-cache all assets
+        caches.open(CACHE_NAME).then((cache) => {
+          console.log("Updating cache based on client request ✅");
+          return Promise.all(
+            ASSETS_TO_CACHE.map((url) => {
+              return fetch(url)
+                .then((response) => {
+                  if (!response.ok) {
+                    throw new Error("Network response was not ok");
+                  }
+                  return cache.put(url, response);
+                })
+                .catch((error) => {
+                  console.error("Failed to update cache for:", url, error);
+                });
+            })
+          );
+        })
+      )
+      .then(() => {
+        // After successful cache update
+        self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: "NEW_CONTENT_AVAILABLE",
+            });
+          });
+        });
+      });
   }
 });
