@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Convex Hull Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.7/lib/p5.min.js"></script>
+    <link rel="stylesheet" href="css/convex-hull.css" />
+  </head>
+  <body>
+    <div class="header">
+      <h1>Convex Hull Visualizer</h1>
+      <h2>Otoczka wypukła</h2>
+    </div>
+
+    <div class="container">
+      <div class="controls-panel">
+        <div class="control-group">
+          <h3>Canvas Size</h3>
+          <div class="size-controls">
+            <div class="size-control-row">
+              <label for="canvas-width">Width:</label>
+              <input
+                type="number"
+                id="canvas-width"
+                value="400"
+                min="200"
+                max="1000"
+                step="50"
+                onchange="updateCanvasSize()"
+                title="Set canvas width in pixels (200-1200)"
+              />
+              <input
+                type="range"
+                id="canvas-width-slider"
+                min="200"
+                max="1200"
+                step="50"
+                value="400"
+                oninput="syncWidthInput(); updateCanvasSize()"
+                title="Adjust canvas width with slider"
+              />
+            </div>
+            <div class="size-control-row">
+              <label for="canvas-height">Height:</label>
+              <input
+                type="number"
+                id="canvas-height"
+                value="400"
+                min="200"
+                max="1200"
+                step="50"
+                onchange="updateCanvasSize()"
+                title="Set canvas height in pixels (200-1200)"
+              />
+              <input
+                type="range"
+                id="canvas-height-slider"
+                min="200"
+                max="1200"
+                step="50"
+                value="400"
+                oninput="syncHeightInput(); updateCanvasSize()"
+                title="Adjust canvas height with slider"
+              />
+            </div>
+            <div class="size-presets">
+              <button class="preset-btn" onclick="setCanvasSize(300, 300)" title="Set canvas to small square size">
+                300x300
+              </button>
+              <button class="preset-btn" onclick="setCanvasSize(400, 400)" title="Set canvas to default square size">
+                400x400
+              </button>
+              <button class="preset-btn" onclick="setCanvasSize(600, 400)" title="Set canvas to wide rectangle">
+                600x400
+              </button>
+              <button class="preset-btn" onclick="setCanvasSize(800, 600)" title="Set canvas to large rectangle">
+                800x600
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Point Generation</h3>
+          <div class="button-group">
+            <button onclick="addRandomPoint()" title="Add a single point at random location on canvas">Add Random Point</button>
+            <button
+              onclick="addPointAt(getCurrentCanvasCenter().x, getCurrentCanvasCenter().y)"
+              title="Add a point at the center of the canvas"
+            >
+              Add Center Point
+            </button>
+            <button onclick="scramblePoints()" title="Randomly reposition all active points on the canvas">Scramble Points</button>
+            <button onclick="arrangeInCircle()" title="Arrange all active points evenly around a circle">Arrange in Circle</button>
+          </div>
+          <div style="margin-top: 15px" class="bulk-controls">
+            <div
+              style="
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                flex-wrap: wrap;
+              "
+            >
+              <input
+                type="number"
+                id="bulk-count"
+                value="5"
+                min="1"
+                max="100"
+                style="width: 70px"
+                title="Number of random points to add (1-100)"
+              />
+              <button onclick="addMultiplePoints()" title="Add multiple random points at once (optimized for large numbers)">Add Multiple</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Canvas Controls</h3>
+          <div class="button-group">
+            <button class="danger" onclick="clearAllPoints()" title="Remove all points from canvas (requires confirmation)">Clear All</button>
+            <button onclick="cleanPoints()" title="Remove points that are too close together (min 5px distance)">Clean Points</button>
+            <button
+              class="secondary"
+              onclick="toggleCanvasRefresh()"
+              id="refresh-toggle"
+              title="Pause/resume canvas animation to save CPU resources"
+            >
+              Pause Canvas
+            </button>
+            <button
+              class="secondary"
+              onclick="toggleDragging()"
+              id="drag-toggle"
+              title="Enable dragging points with mouse to reposition them"
+            >
+              Enable Dragging
+            </button>
+            <button
+              class="secondary"
+              onclick="toggleContinuousHull()"
+              id="continuous-hull-toggle"
+              title="Automatically recalculate hull when points change"
+            >
+              Enable Live Hull
+            </button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Convex Hull</h3>
+          <div class="algorithm-controls">
+            <select id="algorithm-select" title="Choose algorithm for convex hull calculation">
+              <option value="graham">Graham Scan</option>
+              <option value="jarvis">Jarvis March</option>
+            </select>
+            <button onclick="calculateConvexHull()" title="Calculate convex hull using selected algorithm">Calculate Hull</button>
+            <button onclick="clearHull()" title="Remove current convex hull from display">Clear Hull</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Statistics</h3>
+          <div class="stats" id="stats">
+            Points: 0<br />
+            Hull vertices: 0<br />
+            Canvas: 400×400
+          </div>
+        </div>
+
+        <details>
+          <summary>Point Controls (<span id="point-count">0</span>) - Individual controls shown for ≤100 points</summary>
+          <div id="error-container"></div>
+          <div id="points-list"></div>
+        </details>
+      </div>
+
+      <div class="canvas-container">
+        <div id="canvas-container"></div>
+      </div>
+    </div>
+
+    <script>
+      // Application state
+      const APP_CONFIG = {
+        canvas: {
+          width: 400,
+          height: 400,
+          margin: 10,
+          minSize: 200,
+          maxSize: 1200,
+        },
+        colors: {
+          background: 220,
+          point: [51, 51, 51],
+          pointActive: [255, 0, 0],
+          hull: [0, 123, 255],
+          hullFill: [0, 123, 255, 50],
+        },
+        animation: {
+          enabled: true,
+          pointSize: 8,
+          hullWidth: 2,
+        },
+        dragging: {
+          enabled: false,
+          threshold: 10,
+        },
+        continuousHull: {
+          enabled: false,
+        },
+        cleaning: {
+          minDistance: 5.0,
+        },
+        arrangement: {
+          circleRadius: 180, // Will be updated based on canvas size
+        },
+      };
+
+      let points = [];
+      let hull = [];
+      let animationEnabled = true;
+      let draggingEnabled = false;
+      let continuousHullEnabled = false;
+      let draggedPoint = null;
+      let dragOffset = { x: 0, y: 0 };
+      let lastHullMethod = null;
+      let lastCalculationTime = null;
+      let canvas;
+
+      // P5.js setup
+      function setup() {
+        canvas = createCanvas(
+          APP_CONFIG.canvas.width,
+          APP_CONFIG.canvas.height,
+        );
+        canvas.parent("canvas-container");
+        updateCircleRadius();
+        updateStats();
+      }
+
+      // P5.js draw loop
+      function draw() {
+        background(APP_CONFIG.colors.background);
+
+        // Draw hull if it exists
+        if (hull.length > 2) {
+          drawConvexHull();
+        }
+
+        // Draw all active points
+        drawPoints();
+
+        // Draw mouse preview when hovering (only if not in dragging mode)
+        if (
+          !draggingEnabled &&
+          mouseX >= 0 &&
+          mouseX <= width &&
+          mouseY >= 0 &&
+          mouseY <= height
+        ) {
+          drawMousePreview();
+        }
+
+        // Show dragging cursor when hovering over points in drag mode
+        if (draggingEnabled) {
+          drawDragCursor();
+        }
+      }
+
+      // Canvas resizing functions
+      function updateCanvasSize() {
+        const newWidth = parseInt(
+          document.getElementById("canvas-width").value,
+        );
+        const newHeight = parseInt(
+          document.getElementById("canvas-height").value,
+        );
+
+        // Validate dimensions
+        if (
+          newWidth < APP_CONFIG.canvas.minSize ||
+          newWidth > APP_CONFIG.canvas.maxSize ||
+          newHeight < APP_CONFIG.canvas.minSize ||
+          newHeight > APP_CONFIG.canvas.maxSize
+        ) {
+          showError(
+            `Canvas size must be between ${APP_CONFIG.canvas.minSize} and ${APP_CONFIG.canvas.maxSize}`,
+          );
+          return;
+        }
+
+        APP_CONFIG.canvas.width = newWidth;
+        APP_CONFIG.canvas.height = newHeight;
+
+        // Resize the p5.js canvas
+        resizeCanvas(newWidth, newHeight);
+
+        // Update circle radius for arrangements
+        updateCircleRadius();
+
+        // Constrain existing points to new canvas bounds
+        constrainPointsToCanvas();
+
+        // Adjust canvas container padding based on canvas size
+        adjustCanvasContainerPadding(newWidth, newHeight);
+
+        // Update UI
+        updateStats();
+        updatePointsList();
+
+        // Recalculate hull if continuous mode is enabled
+        if (continuousHullEnabled) {
+          calculateConvexHull(true);
+        }
+      }
+
+      function setCanvasSize(width, height) {
+        document.getElementById("canvas-width").value = width;
+        document.getElementById("canvas-height").value = height;
+        document.getElementById("canvas-width-slider").value = width;
+        document.getElementById("canvas-height-slider").value = height;
+        updateCanvasSize();
+      }
+
+      function syncWidthInput() {
+        const sliderValue = document.getElementById(
+          "canvas-width-slider",
+        ).value;
+        document.getElementById("canvas-width").value = sliderValue;
+      }
+
+      function syncHeightInput() {
+        const sliderValue = document.getElementById(
+          "canvas-height-slider",
+        ).value;
+        document.getElementById("canvas-height").value = sliderValue;
+      }
+
+      function updateCircleRadius() {
+        // Set circle radius to be 20px less than half the smallest dimension
+        const minDimension = Math.min(
+          APP_CONFIG.canvas.width,
+          APP_CONFIG.canvas.height,
+        );
+        APP_CONFIG.arrangement.circleRadius = Math.max(
+          50,
+          minDimension / 2 - 20,
+        );
+      }
+
+      function constrainPointsToCanvas() {
+        const margin = APP_CONFIG.canvas.margin;
+        let constrainedCount = 0;
+
+        points.forEach((point) => {
+          const oldX = point.x;
+          const oldY = point.y;
+
+          point.x = Math.max(
+            margin,
+            Math.min(APP_CONFIG.canvas.width - margin, point.x),
+          );
+          point.y = Math.max(
+            margin,
+            Math.min(APP_CONFIG.canvas.height - margin, point.y),
+          );
+
+          if (oldX !== point.x || oldY !== point.y) {
+            constrainedCount++;
+          }
+        });
+
+        if (constrainedCount > 0) {
+          showError(
+            `Adjusted ${constrainedCount} points to fit new canvas size`,
+          );
+        }
+      }
+
+      function getCurrentCanvasCenter() {
+        return {
+          x: APP_CONFIG.canvas.width / 2,
+          y: APP_CONFIG.canvas.height / 2,
+        };
+      }
+
+      // Drawing functions
+      function drawPoints() {
+        points.forEach((point, index) => {
+          if (!point.active) return;
+
+          const isHullVertex = hull.some(
+            (hullPoint) =>
+              Math.abs(hullPoint.x - point.x) < 0.1 &&
+              Math.abs(hullPoint.y - point.y) < 0.1,
+          );
+
+          if (isHullVertex) {
+            fill(APP_CONFIG.colors.pointActive);
+            stroke(APP_CONFIG.colors.pointActive);
+          } else {
+            fill(APP_CONFIG.colors.point);
+            stroke(APP_CONFIG.colors.point);
+          }
+
+          strokeWeight(1);
+          circle(point.x, point.y, APP_CONFIG.animation.pointSize);
+
+          // Draw point label
+          fill(0);
+          noStroke();
+          textAlign(CENTER, CENTER);
+          textSize(10);
+          text(index, point.x, point.y - 15);
+        });
+      }
+
+      function drawConvexHull() {
+        if (hull.length < 3) return;
+
+        // Fill
+        fill(APP_CONFIG.colors.hullFill);
+        stroke(APP_CONFIG.colors.hull);
+        strokeWeight(APP_CONFIG.animation.hullWidth);
+
+        beginShape();
+        hull.forEach((point) => {
+          vertex(point.x, point.y);
+        });
+        endShape(CLOSE);
+      }
+
+      function drawMousePreview() {
+        fill(150, 150, 150, 100);
+        noStroke();
+        circle(mouseX, mouseY, APP_CONFIG.animation.pointSize);
+      }
+
+      function drawDragCursor() {
+        const hoveredPoint = getPointUnderMouse();
+        if (hoveredPoint) {
+          cursor(HAND);
+          // Highlight the point that can be dragged
+          push();
+          fill(255, 255, 0, 100);
+          stroke(255, 255, 0);
+          strokeWeight(2);
+          circle(
+            hoveredPoint.x,
+            hoveredPoint.y,
+            APP_CONFIG.animation.pointSize + 4,
+          );
+          pop();
+        } else {
+          cursor(ARROW);
+        }
+      }
+
+      // Point management functions
+      function addRandomPoint() {
+        const margin = APP_CONFIG.canvas.margin;
+        const x = random(margin, APP_CONFIG.canvas.width - margin);
+        const y = random(margin, APP_CONFIG.canvas.height - margin);
+        addPointAt(x, y);
+      }
+
+      function addPointAt(x, y, skipUIUpdate = false) {
+        if (!validateCoordinates(x, y)) {
+          if (!skipUIUpdate) {
+            showError("Invalid coordinates provided");
+          }
+          return false;
+        }
+
+        const point = {
+          x: Number(x.toFixed(1)),
+          y: Number(y.toFixed(1)),
+          active: true,
+          id: Date.now() + Math.random(),
+        };
+
+        points.push(point);
+        
+        if (!skipUIUpdate) {
+          updatePointsList();
+          updateStats();
+
+          if (continuousHullEnabled) {
+            calculateConvexHull(true);
+          } else {
+            clearHull();
+          }
+        }
+        return true;
+      }
+
+      function addMultiplePoints() {
+        const count = parseInt(document.getElementById("bulk-count").value);
+
+        if (isNaN(count) || count < 1 || count > 1000) {
+          showError("Please enter a valid number between 1 and 1000");
+          return;
+        }
+
+        // Temporarily disable continuous hull calculation and pause canvas
+        const wasHullEnabled = continuousHullEnabled;
+        const wasAnimationEnabled = animationEnabled;
+        
+        if (continuousHullEnabled) {
+          continuousHullEnabled = false;
+        }
+        if (animationEnabled) {
+          noLoop();
+        }
+
+        // Pre-generate random coordinates for better performance
+        const margin = APP_CONFIG.canvas.margin;
+        const randomCoords = [];
+        for (let i = 0; i < count; i++) {
+          randomCoords.push({
+            x: random(margin, APP_CONFIG.canvas.width - margin),
+            y: random(margin, APP_CONFIG.canvas.height - margin)
+          });
+        }
+
+        // Add points without UI updates
+        for (let i = 0; i < count; i++) {
+          const coords = randomCoords[i];
+          addPointAt(coords.x, coords.y, true);
+        }
+
+        // Update UI once after all points are added
+        updatePointsList();
+        updateStats();
+
+        // Restore previous states
+        continuousHullEnabled = wasHullEnabled;
+        if (wasAnimationEnabled) {
+          loop();
+        }
+
+        // Calculate hull once if it was enabled
+        if (wasHullEnabled) {
+          calculateConvexHull(true);
+        } else {
+          clearHull();
+        }
+
+        showError(`Added ${count} points successfully`);
+      }
+
+      function removePoint(index) {
+        if (index >= 0 && index < points.length) {
+          points.splice(index, 1);
+          updatePointsList();
+          updateStats();
+
+          if (continuousHullEnabled) {
+            calculateConvexHull(true);
+          } else {
+            clearHull();
+          }
+        }
+      }
+
+      function togglePoint(index) {
+        if (index >= 0 && index < points.length) {
+          points[index].active = !points[index].active;
+          updatePointsList();
+          updateStats();
+
+          if (continuousHullEnabled) {
+            calculateConvexHull(true);
+          } else {
+            clearHull();
+          }
+        }
+      }
+
+      function updatePoint(index) {
+        if (index < 0 || index >= points.length) return;
+
+        const xInput = document.getElementById(`point-${index}-x`);
+        const yInput = document.getElementById(`point-${index}-y`);
+        const statusInput = document.getElementById(`point-${index}-status`);
+
+        if (!xInput || !yInput || !statusInput) return;
+
+        const newX = parseFloat(xInput.value);
+        const newY = parseFloat(yInput.value);
+        const newStatus = statusInput.checked;
+
+        if (!validateCoordinates(newX, newY)) {
+          showError(`Invalid coordinates for Point ${index}`);
+          // Reset to original values
+          xInput.value = points[index].x;
+          yInput.value = points[index].y;
+          return;
+        }
+
+        points[index].x = Number(newX.toFixed(1));
+        points[index].y = Number(newY.toFixed(1));
+        points[index].active = newStatus;
+
+        if (continuousHullEnabled) {
+          calculateConvexHull(true);
+        } else {
+          clearHull();
+        }
+        updateStats();
+      }
+
+      function clearAllPoints() {
+        if (
+          points.length > 0 &&
+          confirm("Are you sure you want to clear all points?")
+        ) {
+          points = [];
+          hull = [];
+          updatePointsList();
+          updateStats();
+          clearError();
+        }
+      }
+
+      function cleanPoints() {
+        if (points.length === 0) {
+          showError("No points to clean");
+          return;
+        }
+
+        const originalCount = points.length;
+        const cleaned = [];
+        const minDist = APP_CONFIG.cleaning.minDistance;
+
+        // Keep first point
+        if (points.length > 0) {
+          cleaned.push(points[0]);
+        }
+
+        // Check remaining points
+        for (let i = 1; i < points.length; i++) {
+          const currentPoint = points[i];
+          let tooClose = false;
+
+          // Check distance to all already cleaned points
+          for (let j = 0; j < cleaned.length; j++) {
+            const distance = Math.sqrt(
+              Math.pow(currentPoint.x - cleaned[j].x, 2) +
+                Math.pow(currentPoint.y - cleaned[j].y, 2),
+            );
+
+            if (distance < minDist) {
+              tooClose = true;
+              break;
+            }
+          }
+
+          if (!tooClose) {
+            cleaned.push(currentPoint);
+          }
+        }
+
+        const removedCount = originalCount - cleaned.length;
+
+        if (removedCount > 0) {
+          points = cleaned;
+          updatePointsList();
+          updateStats();
+
+          if (continuousHullEnabled) {
+            calculateConvexHull(true);
+          } else {
+            clearHull();
+          }
+
+          showError(
+            `Cleaned ${removedCount} duplicate/close points (min distance: ${minDist}px)`,
+          );
+        } else {
+          showError("No points were close enough to clean");
+        }
+      }
+
+      function scramblePoints() {
+        if (points.length === 0) {
+          showError("No points to scramble");
+          return;
+        }
+
+        const margin = APP_CONFIG.canvas.margin;
+        let scrambledCount = 0;
+
+        points.forEach((point) => {
+          if (point.active) {
+            point.x = Number(
+              random(margin, APP_CONFIG.canvas.width - margin).toFixed(1),
+            );
+            point.y = Number(
+              random(margin, APP_CONFIG.canvas.height - margin).toFixed(1),
+            );
+            scrambledCount++;
+          }
+        });
+
+        updatePointsList();
+        updateStats();
+
+        if (continuousHullEnabled) {
+          calculateConvexHull(true);
+        } else {
+          clearHull();
+        }
+
+        showError(`Scrambled ${scrambledCount} active points`);
+      }
+
+      function arrangeInCircle() {
+        if (points.length === 0) {
+          showError("No points to arrange");
+          return;
+        }
+
+        const activePoints = points.filter((p) => p.active);
+        if (activePoints.length === 0) {
+          showError("No active points to arrange");
+          return;
+        }
+
+        const centerX = APP_CONFIG.canvas.width / 2;
+        const centerY = APP_CONFIG.canvas.height / 2;
+        const radius = APP_CONFIG.arrangement.circleRadius;
+        const angleStep = (2 * Math.PI) / activePoints.length;
+
+        activePoints.forEach((point, index) => {
+          const angle = index * angleStep;
+          point.x = Number((centerX + radius * Math.cos(angle)).toFixed(1));
+          point.y = Number((centerY + radius * Math.sin(angle)).toFixed(1));
+        });
+
+        updatePointsList();
+        updateStats();
+
+        if (continuousHullEnabled) {
+          calculateConvexHull(true);
+        } else {
+          clearHull();
+        }
+
+        showError(`Arranged ${activePoints.length} points in circle`);
+      }
+
+      // Validation functions
+      function validateCoordinates(x, y) {
+        if (isNaN(x) || isNaN(y)) return false;
+        if (x < 0 || x > APP_CONFIG.canvas.width) return false;
+        if (y < 0 || y > APP_CONFIG.canvas.height) return false;
+        return true;
+      }
+
+      // Convex Hull algorithms
+      function calculateConvexHull(silent = false) {
+        const activePoints = points.filter((p) => p.active);
+
+        if (activePoints.length < 3) {
+          if (!silent) {
+            showError("At least 3 active points are required for convex hull");
+          }
+          hull = [];
+          lastCalculationTime = null;
+          updateStats();
+          return;
+        }
+
+        const algorithm = document.getElementById("algorithm-select").value;
+
+        try {
+          // Start timing
+          const startTime = performance.now();
+
+          if (algorithm === "graham") {
+            hull = grahamScan(activePoints);
+            lastHullMethod = "Graham Scan";
+          } else {
+            hull = jarvisMarch(activePoints);
+            lastHullMethod = "Jarvis March";
+          }
+
+          // End timing
+          const endTime = performance.now();
+          lastCalculationTime = (endTime - startTime).toFixed(3);
+
+          updateStats();
+          if (!silent) {
+            clearError();
+          }
+        } catch (error) {
+          if (!silent) {
+            showError("Error calculating convex hull: " + error.message);
+          }
+        }
+      }
+
+      function grahamScan(points) {
+        if (points.length < 3) return [];
+
+        // Find the bottom-most point (and leftmost if tie)
+        let start = points.reduce((lowest, point) =>
+          point.y > lowest.y || (point.y === lowest.y && point.x < lowest.x)
+            ? point
+            : lowest,
+        );
+
+        // Sort points by polar angle with respect to start point
+        const sortedPoints = points
+          .filter((p) => p !== start)
+          .sort((a, b) => {
+            const angleA = Math.atan2(a.y - start.y, a.x - start.x);
+            const angleB = Math.atan2(b.y - start.y, b.x - start.x);
+            return angleA - angleB;
+          });
+
+        // Graham scan algorithm
+        const stack = [start, sortedPoints[0]];
+
+        for (let i = 1; i < sortedPoints.length; i++) {
+          while (
+            stack.length > 1 &&
+            crossProduct(
+              stack[stack.length - 2],
+              stack[stack.length - 1],
+              sortedPoints[i],
+            ) <= 0
+          ) {
+            stack.pop();
+          }
+          stack.push(sortedPoints[i]);
+        }
+
+        return stack;
+      }
+
+      function jarvisMarch(points) {
+        if (points.length < 3) return [];
+
+        const hull = [];
+        let leftmost = points.reduce((left, point) =>
+          point.x < left.x ? point : left,
+        );
+        let current = leftmost;
+
+        do {
+          hull.push(current);
+          let next = points[0];
+
+          for (let i = 1; i < points.length; i++) {
+            if (
+              next === current ||
+              crossProduct(current, next, points[i]) < 0
+            ) {
+              next = points[i];
+            }
+          }
+
+          current = next;
+        } while (current !== leftmost && hull.length < points.length);
+
+        return hull;
+      }
+
+      function crossProduct(O, A, B) {
+        return (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
+      }
+
+      function clearHull() {
+        hull = [];
+        lastHullMethod = null;
+        lastCalculationTime = null;
+        updateStats();
+      }
+
+      // UI update functions
+      function updatePointsList() {
+        const container = document.getElementById("points-list");
+        const pointCount = document.getElementById("point-count");
+
+        pointCount.textContent = points.length;
+
+        if (points.length === 0) {
+          container.innerHTML =
+            '<p style="color: #666; font-style: italic;">No points added yet</p>';
+          return;
+        }
+
+        // Optimize for large numbers of points
+        if (points.length > 100) {
+          container.innerHTML = `
+            <p style="color: #666; font-style: italic;">
+              ${points.length} points (individual controls hidden for performance)<br>
+              <small>Individual point controls are shown only when point count ≤ 100.<br>
+              Use bulk operations (Scramble, Arrange in Circle, Clean Points) or reduce point count to access individual controls.</small>
+            </p>
+          `;
+          return;
+        }
+
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
+        
+        points.forEach((point, index) => {
+          const div = document.createElement('div');
+          div.className = `point-control ${!point.active ? "disabled" : ""}`;
+          div.innerHTML = `
+            <div class="point-label">Point ${index}</div>
+            <input type="checkbox" id="point-${index}-status"
+                   ${point.active ? "checked" : ""}
+                   onchange="togglePoint(${index})">
+            <div class="point-coords">
+                <label>X:</label>
+                <input type="number" id="point-${index}-x"
+                       value="${point.x}"
+                       step="0.1" min="0" max="${APP_CONFIG.canvas.width}"
+                       onchange="updatePoint(${index})">
+                <label>Y:</label>
+                <input type="number" id="point-${index}-y"
+                       value="${point.y}"
+                       step="0.1" min="0" max="${APP_CONFIG.canvas.height}"
+                       onchange="updatePoint(${index})">
+            </div>
+            <button onclick="removePoint(${index})" class="danger" style="padding: 4px 8px; font-size: 12px;">Remove</button>
+          `;
+          fragment.appendChild(div);
+        });
+        
+        // Clear container and append fragment in one operation
+        container.innerHTML = '';
+        container.appendChild(fragment);
+      }
+
+      function updateStats() {
+        const activePoints = points.filter((p) => p.active);
+        const statsElement = document.getElementById("stats");
+
+        let methodInfo = "";
+        if (lastHullMethod) {
+          methodInfo = `<br>Method: ${lastHullMethod}`;
+          if (lastCalculationTime !== null) {
+            methodInfo += `<br>Calculation time: ${lastCalculationTime}ms`;
+          }
+        }
+
+        statsElement.innerHTML = `
+                Points: ${points.length} (${activePoints.length} active)<br>
+                Hull vertices: ${hull.length}${methodInfo}<br>
+                Canvas: ${APP_CONFIG.canvas.width}×${APP_CONFIG.canvas.height}
+            `;
+      }
+
+      function showError(message) {
+        const container = document.getElementById("error-container");
+        container.innerHTML = `<div class="error-message">${message}</div>`;
+        setTimeout(clearError, 5000);
+      }
+
+      function clearError() {
+        const container = document.getElementById("error-container");
+        container.innerHTML = "";
+      }
+
+      function adjustCanvasContainerPadding(canvasWidth, canvasHeight) {
+        const container = document.querySelector('.canvas-container');
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        
+        // Calculate padding based on canvas size relative to container
+        let padding = 20;
+        
+        if (canvasWidth > 600 || canvasHeight > 600) {
+          padding = 5; // Minimal padding for large canvases
+        } else if (canvasWidth > 400 || canvasHeight > 400) {
+          padding = 10; // Medium padding
+        }
+        
+        container.style.padding = `${padding}px`;
+      }
+
+      function toggleCanvasRefresh() {
+        animationEnabled = !animationEnabled;
+        const button = document.getElementById("refresh-toggle");
+
+        if (animationEnabled) {
+          loop();
+          button.textContent = "Pause Canvas";
+          button.classList.remove("success");
+          button.classList.add("secondary");
+        } else {
+          noLoop();
+          button.textContent = "Resume Canvas";
+          button.classList.remove("secondary");
+          button.classList.add("success");
+        }
+      }
+
+      function toggleDragging() {
+        draggingEnabled = !draggingEnabled;
+        const button = document.getElementById("drag-toggle");
+        button.textContent = draggingEnabled
+          ? "Disable Dragging"
+          : "Enable Dragging";
+        button.style.backgroundColor = draggingEnabled ? "#28a745" : "#6c757d";
+
+        // Reset any ongoing drag
+        draggedPoint = null;
+        cursor(ARROW);
+      }
+
+      function toggleContinuousHull() {
+        continuousHullEnabled = !continuousHullEnabled;
+        const button = document.getElementById("continuous-hull-toggle");
+        button.textContent = continuousHullEnabled
+          ? "Disable Live Hull"
+          : "Enable Live Hull";
+        button.style.backgroundColor = continuousHullEnabled
+          ? "#28a745"
+          : "#6c757d";
+
+        // Calculate hull immediately if enabled and we have enough points
+        if (continuousHullEnabled) {
+          calculateConvexHull(true);
+        } else {
+          clearHull();
+        }
+      }
+
+      function getPointUnderMouse() {
+        return points.find(
+          (point) =>
+            point.active &&
+            dist(mouseX, mouseY, point.x, point.y) <=
+              APP_CONFIG.dragging.threshold,
+        );
+      }
+
+      function startDragging(point) {
+        draggedPoint = point;
+        dragOffset.x = mouseX - point.x;
+        dragOffset.y = mouseY - point.y;
+      }
+
+      function updateDraggedPoint() {
+        if (draggedPoint) {
+          const newX = mouseX - dragOffset.x;
+          const newY = mouseY - dragOffset.y;
+
+          // Keep point within canvas bounds
+          const margin = APP_CONFIG.canvas.margin;
+          draggedPoint.x = constrain(
+            newX,
+            margin,
+            APP_CONFIG.canvas.width - margin,
+          );
+          draggedPoint.y = constrain(
+            newY,
+            margin,
+            APP_CONFIG.canvas.height - margin,
+          );
+
+          // Update the corresponding input fields
+          const pointIndex = points.indexOf(draggedPoint);
+          const xInput = document.getElementById(`point-${pointIndex}-x`);
+          const yInput = document.getElementById(`point-${pointIndex}-y`);
+
+          if (xInput && yInput) {
+            xInput.value = draggedPoint.x.toFixed(1);
+            yInput.value = draggedPoint.y.toFixed(1);
+          }
+
+          // Update hull if continuous calculation is enabled
+          if (continuousHullEnabled) {
+            calculateConvexHull(true);
+          } else {
+            clearHull();
+          }
+          updateStats();
+        }
+      }
+
+      function stopDragging() {
+        draggedPoint = null;
+      }
+
+      // Mouse interaction
+      function mousePressed() {
+        if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
+          if (draggingEnabled) {
+            const pointUnderMouse = getPointUnderMouse();
+            if (pointUnderMouse) {
+              startDragging(pointUnderMouse);
+              return;
+            }
+          } else {
+            addPointAt(mouseX, mouseY);
+          }
+        }
+      }
+
+      function mouseDragged() {
+        if (draggingEnabled && draggedPoint) {
+          updateDraggedPoint();
+        }
+      }
+
+      function mouseReleased() {
+        if (draggingEnabled) {
+          stopDragging();
+        }
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", function () {
+        updatePointsList();
+        updateStats();
+      });
+    </script>
+  </body>
+</html>
